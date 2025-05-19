@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customizable Systematic Withdrawal Calculator (Rupees)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        .calculator {
+            background-color: #f5f7fa;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="number"], select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #2c5282;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #1a365d;
+        }
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            margin-top: 20px;
+            height: 400px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f0f0f0;
+        }
+        .toggle-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .toggle-btn {
+            padding: 8px 12px;
+            background-color: #e2e8f0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .toggle-btn.active {
+            background-color: #2c5282;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="calculator">
+        <h1>Customizable Systematic Withdrawal Calculator (Rupees)</h1>
+        
+        <div class="form-group">
+            <label for="initial-balance">Initial Portfolio Balance (₹)</label>
+            <input type="number" id="initial-balance" min="0" step="10000" value="10000000">
+        </div>
+        
+        <div class="form-group">
+            <label for="withdrawal-amount">Annual Withdrawal Amount (₹)</label>
+            <input type="number" id="withdrawal-amount" min="0" step="1000" value="40000">
+        </div>
+
+        <div class="form-group">
+            <label for="investment-return">Expected Annual Return (%)</label>
+            <input type="number" id="investment-return" min="0" max="20" step="0.1" value="7">
+        </div>
+
+        <div class="form-group">
+            <label for="time-horizon">Time Horizon (Years)</label>
+            <input type="number" id="time-horizon" min="1" max="100" step="1" value="30">
+        </div>
+
+        <button id="calculate-btn">Calculate</button>
+    </div>
+
+    <div class="results" id="results" style="display: none;">
+        <h2>Results</h2>
+        
+        <div class="toggle-container">
+            <button class="toggle-btn active" data-tab="chart">Chart</button>
+            <button class="toggle-btn" data-tab="table">Table</button>
+        </div>
+        
+        <div id="chart-tab" class="tab-content active">
+            <div class="chart-container" id="chart-container"></div>
+        </div>
+        
+        <div id="table-tab" class="tab-content">
+            <table id="results-table">
+                <thead>
+                    <tr>
+                        <th>Year</th>
+                        <th>Beginning Balance</th>
+                        <th>Withdrawal</th>
+                        <th>Growth</th>
+                        <th>Ending Balance</th>
+                    </tr>
+                </thead>
+                <tbody id="results-body"></tbody>
+            </table>
+        </div>
+        
+        <div class="summary" id="summary">
+            <h3>Summary</h3>
+            <p id="summary-text"></p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const calculateBtn = document.getElementById('calculate-btn');
+            const resultsDiv = document.getElementById('results');
+            const tabBtns = document.querySelectorAll('.toggle-btn');
+            const tabContents = document.querySelectorAll('.tab-content');
+            let chart = null;
+            
+            // Tab toggle functionality
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const tabId = btn.getAttribute('data-tab');
+                    
+                    // Toggle active class on buttons
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    // Toggle active class on content
+                    tabContents.forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    document.getElementById(`${tabId}-tab`).classList.add('active');
+                });
+            });
+            
+            calculateBtn.addEventListener('click', function() {
+                const initialBalance = parseFloat(document.getElementById('initial-balance').value);
+                const withdrawalAmount = parseFloat(document.getElementById('withdrawal-amount').value);
+                const investmentReturn = parseFloat(document.getElementById('investment-return').value) / 100;
+                const timeHorizon = parseInt(document.getElementById('time-horizon').value);
+
+                if (isNaN(initialBalance) || isNaN(withdrawalAmount) || isNaN(investmentReturn) || isNaN(timeHorizon)) {
+                    alert('Please enter valid numbers for all fields.');
+                    return;
+                }
+                
+                const results = calculateWithdrawal(initialBalance, withdrawalAmount, investmentReturn, timeHorizon);
+                displayResults(results);
+                
+                resultsDiv.style.display = 'block';
+                
+                // Scroll to results
+                resultsDiv.scrollIntoView({ behavior: 'smooth' });
+            });
+            
+            function calculateWithdrawal(initialBalance, withdrawalAmount, investmentReturn, timeHorizon) {
+                const results = [];
+                let currentBalance = initialBalance;
+                
+                for (let year = 1; year <= timeHorizon; year++) {
+                    const startBalance = currentBalance;
+                    const withdrawal = withdrawalAmount;
+                    const afterWithdrawal = startBalance - withdrawal;
+                    
+                    // Check if portfolio is depleted
+                    if (afterWithdrawal <= 0) {
+                        results.push({
+                            year,
+                            startBalance,
+                            withdrawal: Math.min(startBalance, withdrawal),
+                            growth: 0,
+                            endBalance: 0
+                        });
+                        break;
+                    }
+                    
+                    const growth = afterWithdrawal * investmentReturn;
+                    const endBalance = afterWithdrawal + growth;
+                    
+                    results.push({
+                        year,
+                        startBalance,
+                        withdrawal,
+                        growth,
+                        endBalance
+                    });
+                    
+                    currentBalance = endBalance;
+                }
+                
+                return results;
+            }
+            
+            function displayResults(results) {
+                const tableBody = document.getElementById('results-body');
+                tableBody.innerHTML = '';
+                
+                const years = results.map(r => r.year);
+                const balances = results.map(r => r.endBalance);
+                
+                // Display table
+                results.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${row.year}</td>
+                        <td>₹${row.startBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td>₹${row.withdrawal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td>₹${row.growth.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td>₹${row.endBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+                
+                // Display chart
+                const chartContainer = document.getElementById('chart-container');
+                
+                // Clear previous chart if it exists
+                while (chartContainer.firstChild) {
+                    chartContainer.removeChild(chartContainer.firstChild);
+                }
+                
+                // Create canvas element for chart
+                const canvas = document.createElement('canvas');
+                chartContainer.appendChild(canvas);
+                
+                const ctx = canvas.getContext('2d');
+                
+                if (chart) {
+                    chart.destroy();
+                }
+                
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: years,
+                        datasets: [{
+                            label: 'Portfolio Balance',
+                            data: balances,
+                            borderColor: '#2c5282',
+                            backgroundColor: 'rgba(44, 82, 130, 0.1)',
+                            fill: true,
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '₹' + value.toLocaleString();
+                                    }
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Year'
+                                }
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return 'Balance: ₹' + context.parsed.y.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                // Display summary
+                const summaryText = document.getElementById('summary-text');
+                const initialBalance = parseFloat(document.getElementById('initial-balance').value);
+                const withdrawalAmount = parseFloat(document.getElementById('withdrawal-amount').value);
+                const lastResult = results[results.length - 1];
+                
+                let summary = `Starting with ₹${initialBalance.toLocaleString()}, withdrawing ₹${withdrawalAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} annually: `;
+                
+                if (lastResult.endBalance > 0 && lastResult.year === parseInt(document.getElementById('time-horizon').value)) {
+                    summary += `Your portfolio lasts the entire ${lastResult.year}-year period with a final balance of ₹${lastResult.endBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}.`;
+                } else if (lastResult.endBalance <= 0) {
+                    summary += `Your portfolio is depleted after ${lastResult.year} years.`;
+                }
+                
+                summaryText.textContent = summary;
+            }
+        });
+    </script>
+</body>
+</html>
